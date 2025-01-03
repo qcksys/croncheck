@@ -96,7 +96,7 @@ export const FIELD_INFO: Record<FieldType, FieldInfo> = {
 	},
 	day_of_week: {
 		min: 0,
-		max: 7,
+		max: 6,
 		alias: {
 			sun: 0,
 			mon: 1,
@@ -161,7 +161,13 @@ function parseValue(value: string, field: FieldType): number {
 		return 0;
 	}
 
-	validateRange(numValue, field);
+	// We need to validate the original value for day_of_week to allow 7
+	if (field === "day_of_week" && numValue !== 7) {
+		validateRange(numValue, field);
+	} else if (field !== "day_of_week") {
+		validateRange(numValue, field);
+	}
+
 	return numValue;
 }
 
@@ -170,16 +176,20 @@ function parseStep(part: string, field: FieldType): CronStep {
 	const step = Number.parseInt(stepStr, 10);
 
 	if (range === VAL_ANY) {
+		// For day_of_week, we need to handle the special case where max should be 7
+		const max = field === "day_of_week" ? 7 : FIELD_INFO[field].max;
 		return {
 			from: FIELD_INFO[field].min,
-			to: FIELD_INFO[field].max,
+			to: max,
 			step,
 		};
 	}
 
 	const [fromStr, toStr] = range.split(VAL_RANGE);
 	const from = parseValue(fromStr, field);
-	const to = parseValue(toStr || FIELD_INFO[field].max.toString(), field);
+	// For day_of_week, we need to handle the special case where max should be 7
+	const defaultMax = field === "day_of_week" ? 7 : FIELD_INFO[field].max;
+	const to = toStr ? parseValue(toStr, field) : defaultMax;
 
 	return { from, to, step };
 }
@@ -314,7 +324,9 @@ export function parse(expression: string): ParsedCronExpression {
 			hour: parseField(parts[1], "hour"),
 			day_of_month: parseField(parts[2], "day_of_month"),
 			month: parseField(parts[3], "month"),
-			day_of_week: parseField(parts[4], "day_of_week"),
+			day_of_week: parts[4]
+				? parseField(parts[4], "day_of_week")
+				: { all: true },
 		};
 
 		return {

@@ -1,45 +1,11 @@
-export type CronRange = {
-	from: number;
-	to: number;
-};
-
-export type CronStep = {
-	from: number;
-	to: number;
-	step: number;
-};
-
-export type CronNth = {
-	day_of_week: number;
-	instance: number;
-};
-
-export type CronMatch = {
-	all?: boolean;
-	omit?: boolean;
-	ranges?: CronRange[];
-	steps?: CronStep[];
-	nthDays?: CronNth[];
-	values?: number[];
-	lastDay?: boolean;
-	lastDays?: number[];
-	lastWeekday?: boolean;
-	nearestWeekdays?: number[];
-};
-
-export type CronExpression = Record<FieldType, CronMatch>;
-
-export type ParsedCronExpression =
-	| {
-			success: true;
-			pattern: string;
-			expression: CronExpression;
-	  }
-	| {
-			success: false;
-			pattern: string;
-			error: string;
-	  };
+import type {
+	CronExpression,
+	CronMatch,
+	CronRange,
+	CronStep,
+	FieldType,
+	ParsedCronExpression,
+} from "./types";
 
 const VAL_LAST = "l";
 const VAL_ANY = "*";
@@ -64,13 +30,6 @@ export interface FieldInfo {
 	max: number;
 	alias?: Record<string, number>;
 }
-
-export type FieldType =
-	| "minute"
-	| "hour"
-	| "day_of_month"
-	| "month"
-	| "day_of_week";
 
 export const FIELD_INFO: Record<FieldType, FieldInfo> = {
 	minute: { min: 0, max: 59 },

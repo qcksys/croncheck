@@ -13,7 +13,7 @@ function expectExpr(expr: string, expected: Partial<CronExpression>) {
 
 		expect(output.expression).toStrictEqual(expected);
 	} else {
-		expect(output.success).toBe(true);
+		expect(output.error).toBe(undefined);
 	}
 }
 
@@ -432,14 +432,14 @@ describe("invalid expressions", () => {
 	it("should error when not enough fields are passed", () => {
 		expectError(
 			"*",
-			"Invalid expression (must have 5 parts separated by whitespace)",
+			"Invalid cron expression [*]. Expected [4 to 5] fields but found [1] fields.",
 		);
 	});
 
 	it("should error when too many fields are passed", () => {
 		expectError(
-			"* * * * * * ",
-			"Invalid expression (must have 5 parts separated by whitespace)",
+			"* * * * * *",
+			"Invalid cron expression [* * * * * *]. Expected [4 to 5] fields but found [6] fields.",
 		);
 	});
 

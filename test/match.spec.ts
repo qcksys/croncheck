@@ -630,17 +630,6 @@ describe("getFutureMatches with timezones", () => {
 		);
 	});
 
-	it("10 pm every day in pacific with output in pacific", () => {
-		expectFutureMatches(
-			"0 22 * *",
-			["2019-12-31T22:00:00-08:00", "2020-01-01T22:00:00-08:00"],
-			{
-				timezone: "America/Los_Angeles",
-				formatInTimezone: true,
-			},
-		);
-	});
-
 	it("1 am every day in new york", () => {
 		expectFutureMatches(
 			"0 1 * *",
@@ -694,7 +683,8 @@ describe("getFutureMatches with timezones", () => {
 				startAt: "2020-01-02T00:00:00.000Z",
 				matchValidator: (match) => {
 					return (
-						match !== "2020-01-02T00:00:00Z" && match !== "2020-01-02T00:20:00Z"
+						match !== new Date("2020-01-02T00:00:00Z") &&
+						match !== new Date("2020-01-02T00:20:00Z")
 					);
 				},
 			},

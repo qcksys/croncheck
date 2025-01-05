@@ -41,9 +41,8 @@ export type MatchOptions = {
 	startAt?: string;
 	endAt?: string;
 	matchCount?: number;
-	formatInTimezone?: boolean;
 	maxLoopCount?: number;
-	matchValidator?: (input: string) => boolean;
+	matchValidator?: (input: Date) => boolean;
 };
 
 export type ParsedCronExpression = {

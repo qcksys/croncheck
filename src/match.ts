@@ -33,9 +33,7 @@ export function getFutureMatches(
 	} = options;
 
 	const matches: Date[] = [];
-	let currentDate = timezone
-		? new TZDate(new Date(startAt), timezone)
-		: startAt;
+	let currentDate = new TZDate(new Date(startAt), timezone ? timezone : "UTC");
 	let loopCount = 0;
 
 	while (matches.length < matchCount && loopCount < maxLoopCount) {
@@ -52,7 +50,7 @@ export function getFutureMatches(
 	return matches;
 }
 
-export function isTimeMatch(expression: CronExpression, date: Date): boolean {
+export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 	const fields: [FieldType, number][] = [
 		["minute", getMinutes(date)],
 		["hour", getHours(date)],
@@ -60,6 +58,8 @@ export function isTimeMatch(expression: CronExpression, date: Date): boolean {
 		["month", getMonth(date) + 1],
 		["day_of_week", getDay(date) || 7], // Convert Sunday from 0 to 7
 	];
+
+	console.log(date, fields);
 
 	// Handle day of month and day of week logic per #48
 	const monthMatch = expression.month;
@@ -127,6 +127,8 @@ function isFieldMatch(
 	field: FieldType,
 	date: Date,
 ): boolean {
+	console.log(value, match, field, date);
+
 	if (match.omit) return true;
 	if (match.all) return true;
 

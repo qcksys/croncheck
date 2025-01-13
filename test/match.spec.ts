@@ -1,3 +1,4 @@
+import { TZDate } from "@date-fns/tz";
 import { parse } from "@qcksys/croncheck";
 import { getFutureMatches, isTimeMatch } from "../src/match";
 import type { MatchOptions } from "../src/types";
@@ -719,7 +720,7 @@ function checkTime(expr: string, times: string[], result: boolean) {
 		throw new Error("Invalid expression");
 	}
 	for (const time of times) {
-		expect(isTimeMatch(parsed.expression, new Date(time))).toEqual(result);
+		expect(isTimeMatch(parsed.expression, new TZDate(time))).toEqual(result);
 	}
 }
 

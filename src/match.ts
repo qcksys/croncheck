@@ -59,8 +59,6 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 		["day_of_week", getDay(date) || 7], // Convert Sunday from 0 to 7
 	];
 
-	console.log(date, fields);
-
 	// Handle day of month and day of week logic per #48
 	const monthMatch = expression.month;
 	const dayOfMonthMatch = expression.day_of_month;
@@ -127,8 +125,6 @@ function isFieldMatch(
 	field: FieldType,
 	date: Date,
 ): boolean {
-	console.log(value, match, field, date);
-
 	if (match.omit) return true;
 	if (match.all) return true;
 

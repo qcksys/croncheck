@@ -14,7 +14,7 @@ function expectFutureMatches(
 	}
 
 	const output = getFutureMatches(expression.expression, {
-		...{ startAt: "2020-01-01T00:00:00Z", matchCount: runTimes.length },
+		...{ startAt: new Date("2020-01-01T00:00:00Z"), matchCount: runTimes.length },
 		...evalOptions,
 	});
 	expect(output).toEqual(runTimes.map((time) => new Date(time)));
@@ -643,7 +643,7 @@ describe("getFutureMatches with timezones", () => {
 			"0/5 * * * *",
 			["2020-01-02T00:00:00Z", "2020-01-02T00:05:00Z"],
 			{
-				startAt: "2020-01-02T00:00:00.000Z",
+				startAt: new Date("2020-01-02T00:00:00.000Z"),
 			},
 		);
 	});
@@ -653,7 +653,7 @@ describe("getFutureMatches with timezones", () => {
 			"0/5 * * * *",
 			["2025-01-02T00:00:00Z", "2025-01-02T00:05:00Z"],
 			{
-				startAt: "2025-01-02T00:00:00.000Z",
+				startAt: new Date("2025-01-02T00:00:00.000Z"),
 			},
 		);
 	});
@@ -663,7 +663,7 @@ describe("getFutureMatches with timezones", () => {
 			"0 0/1 * 1/1 * ? * ",
 			["2025-01-02T00:00:00Z", "2025-01-02T00:01:00Z"],
 			{
-				startAt: "2025-01-02T00:00:00.000Z",
+				startAt: new Date("2025-01-02T00:00:00.000Z"),
 			},
 		);
 	});
@@ -680,7 +680,7 @@ describe("getFutureMatches with timezones", () => {
 			],
 			{
 				matchCount: 5,
-				startAt: "2020-01-02T00:00:00.000Z",
+				startAt: new Date("2020-01-02T00:00:00.000Z"),
 				matchValidator: (match) => {
 					return (
 						match !== new Date("2020-01-02T00:00:00Z") &&
@@ -754,7 +754,7 @@ describe("Unexpected milliseconds in getFutureMatches", () => {
 			throw new Error("Invalid expression");
 		}
 		const output = getFutureMatches(parsed.expression, {
-			startAt: "2022-02-18T05:00:00.958Z",
+			startAt: new Date("2022-02-18T05:00:00.958Z"),
 			matchCount: 1,
 		});
 		expect(output).toEqual(["2022-02-18T05:00:00Z"]);
@@ -768,7 +768,7 @@ describe("Unexpected results from matcher", () => {
 			throw new Error("Invalid expression");
 		}
 		const output = getFutureMatches(parsed.expression, {
-			startAt: "2022-02-18T05:00:00.788Z",
+			startAt: new Date("2022-02-18T05:00:00.788Z"),
 			matchCount: 5,
 		});
 		expect(output).toEqual([
@@ -786,7 +786,7 @@ describe("Unexpected results from matcher", () => {
 			throw new Error("Invalid expression");
 		}
 		const output = getFutureMatches(parsed.expression, {
-			startAt: "2022-02-18T05:00:00.958Z",
+			startAt: new Date("2022-02-18T05:00:00.958Z"),
 			matchCount: 5,
 		});
 		expect(output).toEqual([

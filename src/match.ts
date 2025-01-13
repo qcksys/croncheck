@@ -25,7 +25,7 @@ export function getFutureMatches(
 	options: MatchOptions = {},
 ): Date[] {
 	const {
-		startAt = "2020-01-01T00:00:00Z",
+		startAt = new Date(),
 		matchCount = 2,
 		timezone,
 		maxLoopCount = 1000,
@@ -35,7 +35,7 @@ export function getFutureMatches(
 	const matches: Date[] = [];
 	let currentDate = timezone
 		? new TZDate(new Date(startAt), timezone)
-		: new Date(startAt);
+		: startAt;
 	let loopCount = 0;
 
 	while (matches.length < matchCount && loopCount < maxLoopCount) {

@@ -38,8 +38,8 @@ export type FieldType =
 
 export type MatchOptions = {
 	timezone?: string;
-	startAt?: string;
-	endAt?: string;
+	startAt?: Date;
+	endAt?: Date;
 	matchCount?: number;
 	maxLoopCount?: number;
 	matchValidator?: (input: Date) => boolean;

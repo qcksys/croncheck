@@ -133,12 +133,12 @@ function getNextValidField(
 		return currentValue + 1;
 	}
 
-	if (match.values) {
+	if (match.values && match.values[0] !== undefined) {
 		const nextValue = match.values.find((v) => v > currentValue);
 		return nextValue !== undefined ? nextValue : match.values[0];
 	}
 
-	if (match.ranges) {
+	if (match.ranges && match.ranges[0] !== undefined) {
 		for (const range of match.ranges) {
 			if (currentValue < range.from) {
 				return range.from;
@@ -150,7 +150,7 @@ function getNextValidField(
 		return match.ranges[0].from;
 	}
 
-	if (match.steps) {
+	if (match.steps && match.steps[0] !== undefined) {
 		const step = match.steps[0];
 		if (currentValue < step.from) {
 			return step.from;

@@ -12,7 +12,10 @@
 		"url": "git+https://github.com/qcksys/croncheck.git"
 	},
 	"license": "MIT",
-	"author": "tom@tomalle.com",
+	"author": "Tom Alle <tom@qcksys.com>",
+	"publishConfig": {
+		"access": "public"
+	},
 	"type": "module",
 	"scripts": {
 		"test": "bun test",
@@ -30,5 +33,17 @@
 		"@types/bun": "^1.2.15",
 		"bun-plugin-dts": "^0.3.0",
 		"typescript": "^5.8.3"
+	},
+	"exports": {
+		"./match": {
+			"types": "./dist/match.d.ts",
+			"import": "./dist/match.js",
+			"require": "./dist/match.cjs"
+		},
+		"./parse": {
+			"types": "./dist/parse.d.ts",
+			"import": "./dist/parse.js",
+			"require": "./dist/parse.cjs"
+		}
 	}
 }

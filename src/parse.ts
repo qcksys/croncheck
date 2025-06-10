@@ -105,7 +105,7 @@ function parseValue(value: string, field: FieldType): number {
 	const cleanValue = value.toLowerCase();
 
 	// Handle aliases
-	if (info.alias && cleanValue in info.alias) {
+	if (info.alias && cleanValue in info.alias && info.alias[cleanValue]) {
 		return info.alias[cleanValue];
 	}
 
@@ -132,6 +132,13 @@ function parseValue(value: string, field: FieldType): number {
 
 function parseStep(part: string, field: FieldType): CronStep {
 	const [range, stepStr] = part.split(VAL_STEP);
+
+	if (!range || !stepStr) {
+		throw new Error(
+			`Invalid step format [${part}] for field [${field}]. Expected format: "from/to/step".`,
+		);
+	}
+
 	const step = Number.parseInt(stepStr, 10);
 
 	if (range === VAL_ANY) {
@@ -145,6 +152,13 @@ function parseStep(part: string, field: FieldType): CronStep {
 	}
 
 	const [fromStr, toStr] = range.split(VAL_RANGE);
+
+	if (!fromStr) {
+		throw new Error(
+			`Invalid step format [${part}] for field [${field}]. Expected format: "from/to/step".`,
+		);
+	}
+
 	const from = parseValue(fromStr, field);
 	// For day_of_week, we need to handle the special case where max should be 7
 	const defaultMax = field === "day_of_week" ? 7 : FIELD_INFO[field].max;
@@ -155,6 +169,13 @@ function parseStep(part: string, field: FieldType): CronStep {
 
 function parseRange(part: string, field: FieldType): CronRange {
 	const [fromStr, toStr] = part.split(VAL_RANGE);
+
+	if (!fromStr || !toStr) {
+		throw new Error(
+			`Invalid range format [${part}] for field [${field}]. Expected format: "from-to".`,
+		);
+	}
+
 	const from = parseValue(fromStr, field);
 	const to = parseValue(toStr, field);
 	return { from, to };
@@ -229,6 +250,13 @@ function parseField(part: string, field: FieldType): CronMatch {
 		// Handle nth day of week
 		if (subPart.includes(VAL_NTH) && field === "day_of_week") {
 			const [dayStr, instanceStr] = subPart.split(VAL_NTH);
+
+			if (!dayStr || !instanceStr) {
+				throw new Error(
+					`Invalid nth day format [${subPart}] for field [${field}]. Expected format: "day#instance".`,
+				);
+			}
+
 			const day = parseValue(dayStr, field);
 			const instance = Number.parseInt(instanceStr, 10);
 			result.nthDays = result.nthDays || [];
@@ -269,7 +297,14 @@ export function parse(expression: string): ParsedCronExpression {
 
 	const parts = splitExpression(expression);
 
-	if (parts.length < 4 || parts.length > 5) {
+	if (
+		parts.length < 4 ||
+		parts.length > 5 ||
+		parts[0] === undefined ||
+		parts[1] === undefined ||
+		parts[2] === undefined ||
+		parts[3] === undefined
+	) {
 		return {
 			success: false,
 			pattern: expression,

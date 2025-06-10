@@ -22,7 +22,8 @@ function expectFutureMatches(
         },
         ...evalOptions,
     });
-    expect(output).toEqual(runTimes.map((time) => new Date(time)));
+    // Normalize the timezone handling by comparing ISO strings
+    expect(output.map(d => d.toISOString())).toEqual(runTimes.map((time) => new Date(time).toISOString()));
     return output;
 }
 

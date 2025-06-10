@@ -1,9 +1,8 @@
 import { TZDate } from "@date-fns/tz";
 import {
 	addDays,
-	addMinutes,
+	addYears,
 	endOfMonth,
-	format,
 	getDate,
 	getDay,
 	getHours,
@@ -12,7 +11,6 @@ import {
 	isWeekend,
 	startOfMonth,
 } from "date-fns";
-import { enUS } from "date-fns/locale";
 import type {
 	CronExpression,
 	CronMatch,
@@ -44,10 +42,124 @@ export function getFutureMatches(
 				matches.push(currentDate);
 			}
 		}
-		currentDate = addMinutes(currentDate, 1);
+
+		// Calculate the next valid date based on cron expression
+		currentDate = getNextValidDate(currentDate, expression);
 	}
 
 	return matches;
+}
+
+function getNextValidDate(
+	currentDate: TZDate,
+	expression: CronExpression,
+): TZDate {
+	let nextDate = new TZDate(currentDate);
+
+	// Start by finding the next valid minute
+	const currentMinute = getMinutes(currentDate);
+	const nextMinute = getNextValidField(
+		currentMinute,
+		expression.minute,
+		0,
+		59,
+		true,
+	);
+	if (nextMinute > currentMinute) {
+		nextDate.setMinutes(nextMinute);
+		return nextDate;
+	}
+
+	// If minute wraps around, find the next valid hour
+	const currentHour = getHours(currentDate);
+	const nextHour = getNextValidField(
+		currentHour,
+		expression.hour,
+		0,
+		23,
+		false,
+	);
+	if (nextHour > currentHour) {
+		nextDate.setHours(nextHour);
+		nextDate.setMinutes(0);
+		return nextDate;
+	}
+
+	// If hour wraps around, find the next valid day of month
+	const currentDay = getDate(currentDate);
+	const lastDayOfMonth = getDate(endOfMonth(currentDate));
+	const nextDay = getNextValidField(
+		currentDay,
+		expression.day_of_month,
+		1,
+		lastDayOfMonth,
+		false,
+	);
+	if (nextDay > currentDay) {
+		nextDate = addDays(nextDate, nextDay - currentDay);
+		nextDate.setHours(0);
+		nextDate.setMinutes(0);
+		return nextDate;
+	}
+
+	// If day of month wraps around, find the next valid month
+	const currentMonth = getMonth(currentDate) + 1; // Months are 0-based in Date
+	const nextMonth = getNextValidField(
+		currentMonth,
+		expression.month,
+		1,
+		12,
+		false,
+	);
+	if (nextMonth > currentMonth) {
+		nextDate.setMonth(nextMonth - 1); // Set month correctly (0-based)
+		nextDate.setDate(1);
+		nextDate.setHours(0);
+		nextDate.setMinutes(0);
+		return nextDate;
+	}
+
+	return addYears(nextDate, 1);
+}
+
+function getNextValidField(
+	currentValue: number,
+	match: CronMatch,
+	min: number,
+	max: number,
+	wrapAround: boolean,
+): number {
+	if (match.all) {
+		return currentValue + 1;
+	}
+
+	if (match.values) {
+		const nextValue = match.values.find((v) => v > currentValue);
+		return nextValue !== undefined ? nextValue : match.values[0];
+	}
+
+	if (match.ranges) {
+		for (const range of match.ranges) {
+			if (currentValue < range.from) {
+				return range.from;
+			}
+			if (currentValue <= range.to) {
+				return range.from;
+			}
+		}
+		return match.ranges[0].from;
+	}
+
+	if (match.steps) {
+		const step = match.steps[0];
+		if (currentValue < step.from) {
+			return step.from;
+		}
+		const steps = Math.floor((currentValue - step.from) / step.step);
+		return step.from + (steps + 1) * step.step;
+	}
+
+	return currentValue + 1;
 }
 
 export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
@@ -97,7 +209,7 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 
 	// If neither is asterisk, match either condition
 	const dayOfMonthMatches = isFieldMatch(
-		getDate(date),
+		getMinutes(date),
 		dayOfMonthMatch,
 		"day_of_month",
 		date,
@@ -159,23 +271,6 @@ function isFieldMatch(
 	}
 
 	return false;
-}
-
-function formatDate(
-	date: Date | TZDate,
-	timezone?: string,
-	formatInTimezone = false,
-): string {
-	if (formatInTimezone && timezone) {
-		// If date is already a TZDate with the correct timezone, format it directly
-		if (date instanceof TZDate && date.timeZone === timezone) {
-			return format(date, "yyyy-MM-dd'T'HH:mm:ssxxx", { locale: enUS });
-		}
-		// Otherwise, create a new TZDate with the desired timezone
-		const tzDate = new TZDate(date, timezone);
-		return format(tzDate, "yyyy-MM-dd'T'HH:mm:ssxxx", { locale: enUS });
-	}
-	return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'", { locale: enUS });
 }
 
 function getLastWeekdayOfMonth(date: Date): number {

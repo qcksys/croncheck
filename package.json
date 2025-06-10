@@ -1,6 +1,6 @@
 {
 	"name": "@qcksys/croncheck",
-	"version": "0.1.0",
+	"version": "0.0.1",
 	"description": "Modern library for parsing and matching cron expressions",
 	"keywords": ["cron"],
 	"homepage": "https://github.com/qcksys/croncheck#readme",
@@ -14,12 +14,12 @@
 	"license": "MIT",
 	"author": "tom@tomalle.com",
 	"type": "module",
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
 	"scripts": {
-		"test": "vitest",
-		"build": "tsc",
-		"biome": "biome check --write --unsafe"
+		"test": "bun test",
+		"build": "bun run build.ts",
+		"prepublishOnly": "bun run build",
+		"biome:check:unsafe": "biome check --write --unsafe",
+		"biome:ci": "biome ci"
 	},
 	"dependencies": {
 		"@date-fns/tz": "^1.2.0",
@@ -27,10 +27,8 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
-		"@types/node": "^22.10.5",
-		"@vitest/coverage-v8": "^2.1.8",
-		"typescript": "^5.7.2",
-		"vite-tsconfig-paths": "^5.1.4",
-		"vitest": "^2.1.8"
+		"@types/bun": "^1.2.15",
+		"bun-plugin-dts": "^0.3.0",
+		"typescript": "^5.8.3"
 	}
 }

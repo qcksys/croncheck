@@ -1,5 +1,7 @@
-import { type CronExpression, parse } from "@qcksys/croncheck";
+import { describe, expect, it } from "bun:test";
 import { CronFields } from "../src/parse";
+import { parse } from "../src/parse.ts";
+import type { CronExpression } from "../src/types.ts";
 
 function expectExpr(expr: string, expected: Partial<CronExpression>) {
 	const output = parse(expr);
@@ -11,8 +13,10 @@ function expectExpr(expr: string, expected: Partial<CronExpression>) {
 			}
 		}
 
+		// @ts-ignore
 		expect(output.expression).toStrictEqual(expected);
 	} else {
+		// @ts-ignore
 		expect(output.error).toBe(undefined);
 	}
 }
@@ -21,6 +25,7 @@ function expectError(expr: string, error: string) {
 	const output = parse(expr);
 
 	if (output.success) {
+		// @ts-ignore
 		expect(output.success).toBe(false);
 	} else {
 		expect(output.error).toBe(error);

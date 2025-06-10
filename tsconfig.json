@@ -1,21 +1,22 @@
 {
 	"compilerOptions": {
-		"target": "ES2022",
-		"declaration": true,
-		"moduleResolution": "Bundler",
-		"outDir": "./dist",
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
+		"types": [],
+		"lib": ["ESNext"],
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleDetection": "force",
+		"jsx": "react-jsx",
+		"allowJs": true,
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": true,
 		"strict": true,
-		"skipLibCheck": false,
-		"noUnusedLocals": false,
-		"noUnusedParameters": false,
-		"types": ["node", "vitest/globals"],
-		"baseUrl": ".",
-		"paths": {
-			"@qcksys/croncheck": ["src/index.ts"],
-			"~": ["src/*"]
-		}
-	},
-	"include": ["src/**/*.ts", "test/**/*.ts"]
+		"skipLibCheck": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedIndexedAccess": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noPropertyAccessFromIndexSignature": true
+	}
 }

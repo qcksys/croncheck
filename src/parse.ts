@@ -216,7 +216,18 @@ function parseField(part: string, field: FieldType): CronMatch {
 		return result;
 	}
 
-	const parts = part.toLowerCase().split(VAL_SEPARATOR);
+	// Normalize day of week names case-insensitively
+	let normalizedPart = part;
+	if (field === "day_of_week") {
+		const alias = FIELD_INFO[field].alias || {};
+		for (const [key, value] of Object.entries(alias)) {
+			// Replace day names like SUN, Sun, sun with numeric values
+			const regex = new RegExp(`\\b${key}\\b`, "i");
+			normalizedPart = normalizedPart.replace(regex, value.toString());
+		}
+	}
+
+	const parts = normalizedPart.toLowerCase().split(VAL_SEPARATOR);
 
 	for (const subPart of parts) {
 		// Handle last day of month

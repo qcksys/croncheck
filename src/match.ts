@@ -31,7 +31,10 @@ export function getFutureMatches(
 
 	const matches: Date[] = [];
 	const tz = timezone || "UTC";
-	let currentDate = new TZDate(new Date(startAt), tz);
+	// Create a clean start date without milliseconds
+	const startTime = new Date(startAt);
+	startTime.setMilliseconds(0);
+	let currentDate = new TZDate(startTime, tz);
 	let loopCount = 0;
 
 	while (matches.length < matchCount && loopCount < maxLoopCount) {
@@ -177,20 +180,21 @@ function getNextValidDate(
 		}
 
 		// If both are specified, either condition can match
-		if (
-			isFieldMatch(
-				currentDayOfMonth,
-				expression.day_of_month,
-				"day_of_month",
-				nextDate,
-			) ||
-			isFieldMatch(
-				currentDayOfWeek,
-				expression.day_of_week,
-				"day_of_week",
-				nextDate,
-			)
-		) {
+		const dayOfMonthMatches = isFieldMatch(
+			currentDayOfMonth,
+			expression.day_of_month,
+			"day_of_month",
+			nextDate,
+		);
+
+		const dayOfWeekMatches = isFieldMatch(
+			currentDayOfWeek,
+			expression.day_of_week,
+			"day_of_week",
+			nextDate,
+		);
+
+		if (dayOfMonthMatches || dayOfWeekMatches) {
 			break;
 		}
 	}
@@ -244,10 +248,8 @@ function getNextValidField(
 			if (currentValue < range.from) {
 				return range.from;
 			}
-			if (currentValue >= range.from && currentValue <= range.to) {
-				if (currentValue < range.to) {
-					return currentValue + 1;
-				}
+			if (currentValue >= range.from && currentValue < range.to) {
+				return currentValue + 1;
 			}
 		}
 
@@ -286,16 +288,19 @@ function getNextValidField(
 }
 
 export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
-	const fields: [FieldType, number][] = [
-		["minute", getMinutes(date)],
-		["hour", getHours(date)],
-		["day_of_month", getDate(date)],
-		["month", getMonth(date) + 1],
-		["day_of_week", getDay(date)], // Sunday is 0
-	];
+	const minuteValue = getMinutes(date);
+	const hourValue = getHours(date);
+	const dayOfMonthValue = getDate(date);
+	const monthValue = getMonth(date) + 1;
+	const dayOfWeekValue = getDay(date); // Sunday is 0
+
+	// Ensure base fields match
+	if (!isFieldMatch(minuteValue, expression.minute, "minute", date))
+		return false;
+	if (!isFieldMatch(hourValue, expression.hour, "hour", date)) return false;
+	if (!isFieldMatch(monthValue, expression.month, "month", date)) return false;
 
 	// Handle day of month and day of week logic per #48
-	const monthMatch = expression.month;
 	const dayOfMonthMatch = expression.day_of_month;
 	const dayOfWeekMatch = expression.day_of_week;
 
@@ -304,30 +309,18 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 	const isDayOfWeekAsterisk = dayOfWeekMatch.all && !dayOfWeekMatch.omit;
 
 	if (isDayOfMonthAsterisk && isDayOfWeekAsterisk) {
-		// If both are asterisks, check other fields
-		return fields
-			.filter(([field]) => field !== "day_of_week" && field !== "day_of_month")
-			.every(([field, value]) =>
-				isFieldMatch(value, expression[field], field, date),
-			);
+		// If both are asterisks, we've already checked minute, hour, month
+		return true;
 	}
 
 	// If day of week is asterisk, use day of month
 	if (isDayOfWeekAsterisk) {
-		return fields
-			.filter(([field]) => field !== "day_of_week")
-			.every(([field, value]) =>
-				isFieldMatch(value, expression[field], field, date),
-			);
+		return isFieldMatch(dayOfMonthValue, dayOfMonthMatch, "day_of_month", date);
 	}
 
 	// If day of month is asterisk, use day of week
 	if (isDayOfMonthAsterisk) {
-		return fields
-			.filter(([field]) => field !== "day_of_month")
-			.every(([field, value]) =>
-				isFieldMatch(value, expression[field], field, date),
-			);
+		return isFieldMatch(dayOfWeekValue, dayOfWeekMatch, "day_of_week", date);
 	}
 
 	// If neither is asterisk, match either condition
@@ -338,8 +331,6 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 		date,
 	);
 
-	// Handle the day of week value: getDay() returns 0-6 where 0 is Sunday
-	const dayOfWeekValue = getDay(date);
 	// Some cron systems treat 7 as Sunday, so we need to normalize
 	const dayOfWeekMatches = isFieldMatch(
 		dayOfWeekValue,
@@ -348,18 +339,11 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 		date,
 	);
 
-	return (
-		fields
-			.filter(([field]) => field !== "day_of_week" && field !== "day_of_month")
-			.every(([field, value]) =>
-				isFieldMatch(value, expression[field], field, date),
-			) &&
-		(dayOfMonthMatches || dayOfWeekMatches)
-	);
+	return dayOfMonthMatches || dayOfWeekMatches;
 }
 
 function isFieldMatch(
-	value: number,
+	inputValue: number,
 	match: CronMatch,
 	field: FieldType,
 	date: Date,
@@ -368,10 +352,7 @@ function isFieldMatch(
 	if (match.all) return true;
 
 	// Special handling for day_of_week where 7 is treated as 0 (Sunday)
-	if (field === "day_of_week") {
-		// Ensure Sunday is consistently handled (can be 0 or 7)
-		if (value === 7) value = 0;
-	}
+	const value = field === "day_of_week" && inputValue === 7 ? 0 : inputValue;
 
 	if (match.values?.includes(value)) return true;
 
@@ -401,15 +382,37 @@ function isFieldMatch(
 		// Handle nth days of the week
 		if (match.nthDays?.length) {
 			return match.nthDays.some((nth) => {
-				const nthDate = getNthDayOfMonth(date, nth.day_of_week, nth.instance);
-				return getDate(date) === nthDate;
+				// Check if this day of week is the nth instance
+				const dow = getDay(date);
+				if (dow !== nth.day_of_week) return false;
+
+				// Calculate which instance of this day of week it is
+				const dayOfMonth = getDate(date);
+				const firstDayOfMonth = startOfMonth(date);
+				const firstDowOfMonth = getDay(firstDayOfMonth);
+				const instance =
+					Math.floor(
+						(dayOfMonth -
+							1 +
+							(firstDowOfMonth > dow
+								? 7 - firstDowOfMonth + dow
+								: dow - firstDowOfMonth)) /
+							7,
+					) + 1;
+				return instance === nth.instance;
 			});
 		}
 
 		// Handle last day of week in month
 		if (match.lastDays?.length) {
-			const lastDate = getLastDayOfWeekInMonth(date, value);
-			return getDate(date) === lastDate;
+			if (!match.lastDays.includes(value)) return false;
+
+			const lastDay = endOfMonth(date);
+			let current = lastDay;
+			while (getDay(current) !== value) {
+				current = addDays(current, -1);
+			}
+			return getDate(date) === getDate(current);
 		}
 	}
 

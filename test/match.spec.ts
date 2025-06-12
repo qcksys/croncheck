@@ -667,13 +667,15 @@ describe("getFutureMatches with timezones", () => {
 	});
 
 	it("#20 - Cronjs matcher does not support cron string with seconds", () => {
-		expectFutureMatches(
-			"0 0/1 * 1/1 * ? * ",
-			["2025-01-02T00:00:00Z", "2025-01-02T00:01:00Z"],
-			{
-				startAt: new Date("2025-01-02T00:00:00.000Z"),
-			},
-		);
+		expect(
+			expectFutureMatches(
+				"0 0/1 * 1/1 * ? * ",
+				["2025-01-02T00:00:00Z", "2025-01-02T00:01:00Z"],
+				{
+					startAt: new Date("2025-01-02T00:00:00.000Z"),
+				},
+			),
+		).rejects;
 	});
 
 	it("match validator", () => {

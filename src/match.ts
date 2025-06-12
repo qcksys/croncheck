@@ -222,6 +222,9 @@ function getNextValidDate(
 	return nextDate;
 }
 
+/**
+ * Get the next valid value for a cron field based on the current value and match criteria.
+ */
 function getNextValidField(
 	currentValue: number,
 	match: CronMatch,
@@ -233,7 +236,7 @@ function getNextValidField(
 		return currentValue + 1;
 	}
 
-	if (match.values && match.values.length > 0) {
+	if (match.values && match.values.length > 0 && match.values[0]) {
 		const nextValue = match.values.find((v) => v > currentValue);
 		return nextValue !== undefined
 			? nextValue
@@ -242,7 +245,7 @@ function getNextValidField(
 				: max + 1;
 	}
 
-	if (match.ranges && match.ranges.length > 0) {
+	if (match.ranges && match.ranges.length > 0 && match.ranges[0]) {
 		// First check if we can find a value in one of the ranges
 		for (const range of match.ranges) {
 			if (currentValue < range.from) {
@@ -277,7 +280,7 @@ function getNextValidField(
 		}
 
 		// If we get here and wrapping is allowed, return the start of the first step
-		if (wrapAround && match.steps[0].step !== 0) {
+		if (wrapAround && match.steps[0] && match.steps[0].step !== 0) {
 			return match.steps[0].from;
 		}
 	}
@@ -292,7 +295,7 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 	const hourValue = getHours(date);
 	const dayOfMonthValue = getDate(date);
 	const monthValue = getMonth(date) + 1;
-	const dayOfWeekValue = getDay(date); // Sunday is 0
+	const dayOfWeekValue = getDay(date);
 
 	// Ensure base fields match
 	if (!isFieldMatch(minuteValue, expression.minute, "minute", date))
@@ -343,16 +346,13 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
 }
 
 function isFieldMatch(
-	inputValue: number,
+	value: number,
 	match: CronMatch,
 	field: FieldType,
 	date: Date,
 ): boolean {
 	if (match.omit) return true;
 	if (match.all) return true;
-
-	// Special handling for day_of_week where 7 is treated as 0 (Sunday)
-	const value = field === "day_of_week" && inputValue === 7 ? 0 : inputValue;
 
 	if (match.values?.includes(value)) return true;
 
@@ -407,8 +407,7 @@ function isFieldMatch(
 		if (match.lastDays?.length) {
 			if (!match.lastDays.includes(value)) return false;
 
-			const lastDay = endOfMonth(date);
-			let current = lastDay;
+			let current = endOfMonth(date);
 			while (getDay(current) !== value) {
 				current = addDays(current, -1);
 			}
@@ -434,28 +433,4 @@ function getNearestWeekday(date: Date): number {
 	if (dayOfWeek === 0) return day + 1; // If Sunday, move to Monday
 	if (dayOfWeek === 6) return day - 1; // If Saturday, move to Friday
 	return day;
-}
-
-function getNthDayOfMonth(
-	date: Date,
-	dayOfWeek: number,
-	instance: number,
-): number {
-	const firstOfMonth = startOfMonth(date);
-	const firstDayOfWeek = getDay(firstOfMonth);
-	return 1 + ((dayOfWeek - firstDayOfWeek + 7) % 7) + (instance - 1) * 7;
-}
-
-function getLastDayOfWeekInMonth(date: Date, dayOfWeek: number): number {
-	const lastDayOfMonth = endOfMonth(date);
-	const lastDayOfWeekDay = getDay(lastDayOfMonth);
-	const daysToSubtract = (lastDayOfWeekDay - dayOfWeek + 7) % 7;
-
-	// If we're already on the right day, don't subtract
-	if (daysToSubtract === 0) {
-		return getDate(lastDayOfMonth);
-	}
-
-	const lastOccurrence = addDays(lastDayOfMonth, -daysToSubtract);
-	return getDate(lastOccurrence);
 }

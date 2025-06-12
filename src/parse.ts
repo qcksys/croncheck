@@ -244,7 +244,7 @@ function parseField(part: string, field: FieldType): CronMatch {
 
 		// Handle nearest weekday
 		if (subPart.endsWith(VAL_WEEKDAY) && field === "day_of_month") {
-			const day = Number.parseInt(subPart.slice(0, -1), 10);
+			const day = Number.parseInt(subPart.slice(0, -VAL_WEEKDAY.length), 10);
 			result.nearestWeekdays = result.nearestWeekdays || [];
 			result.nearestWeekdays.push(day);
 			continue;
@@ -252,7 +252,7 @@ function parseField(part: string, field: FieldType): CronMatch {
 
 		// Handle last day of week in month
 		if (subPart.endsWith(VAL_LAST) && field === "day_of_week") {
-			const day = parseValue(subPart.slice(0, -1), field);
+			const day = parseValue(subPart.slice(0, -VAL_LAST.length), field);
 			result.lastDays = result.lastDays || [];
 			result.lastDays.push(day);
 			continue;

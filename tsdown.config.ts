@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-    entry: ["./src/match.ts", "./src/parse.ts"],
+    entry: "./src/index.ts",
     outDir: "./dist",
     platform: "neutral",
     dts: true,

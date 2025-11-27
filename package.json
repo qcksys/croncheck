@@ -38,14 +38,13 @@
         "vitest": "^4.0.14"
     },
     "exports": {
-        "./match": {
-            "import": "./dist/match.js",
-            "require": "./dist/match.cjs"
-        },
-        "./parse": {
-            "import": "./dist/parse.js",
-            "require": "./dist/parse.cjs"
+        ".": {
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
         },
         "./package.json": "./package.json"
-    }
+    },
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.cts"
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { CronFields } from "../src/parse";
 import { parse } from "../src/parse.ts";
 import type { CronExpression } from "../src/types.ts";
@@ -13,10 +13,8 @@ function expectExpr(expr: string, expected: Partial<CronExpression>) {
             }
         }
 
-        // @ts-expect-error
         expect(output.expression).toStrictEqual(expected);
     } else {
-        // @ts-expect-error
         expect(output.error).toBe(undefined);
     }
 }
@@ -25,7 +23,6 @@ function expectError(expr: string, error: string) {
     const output = parse(expr);
 
     if (output.success) {
-        // @ts-expect-error
         expect(output.success).toBe(false);
     } else {
         expect(output.error).toBe(error);

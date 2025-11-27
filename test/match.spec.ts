@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { TZDate } from "@date-fns/tz";
 import { getFutureMatches, isTimeMatch } from "../src/match";
 import { parse } from "../src/parse.ts";

@@ -23,7 +23,7 @@
         "test": "vitest --run",
         "test:watch": "vitest",
         "build": "tsdown",
-        "publish": "pnpm run build & pnpm publish",
+        "prepublish": "tsdown",
         "biome:check:unsafe": "biome check --write --unsafe",
         "biome:ci": "biome ci"
     },

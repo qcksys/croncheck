@@ -106,7 +106,7 @@ function parseValue(value: string, field: FieldType): number {
 
     // Handle aliases
     if (info.alias && cleanValue in info.alias) {
-        return info.alias[cleanValue]!;
+        return info.alias[cleanValue] as number;
     }
 
     // Handle numeric values

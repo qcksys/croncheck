@@ -105,7 +105,8 @@ function getNextMatchingMonth(
     }
 
     // Wrap to first valid month of next year
-    return { month: validMonths[0]!, wrapped: true };
+    // validMonths is guaranteed to have at least one element here since we checked length === 0 above
+    return { month: validMonths[0] as number, wrapped: true };
 }
 
 /**
@@ -142,7 +143,11 @@ function getFirstValidDayOfMonth(match: CronMatch): number | undefined {
 /**
  * Get the first valid value for a field (used for hour/minute on new days).
  */
-function getFirstValidFieldValue(match: CronMatch, min: number, max: number): number {
+function getFirstValidFieldValue(
+    match: CronMatch,
+    min: number,
+    max: number,
+): number {
     if (match.all || match.omit) {
         return min;
     }
@@ -208,21 +213,61 @@ function getNextValidDate(
     // Check if the current day matches the day constraints
     let dayMatches = false;
     if (isDayOfMonthAny && isDayOfWeekAny) {
-        dayMatches = isFieldMatch(currentMonthVal, expression.month, "month", nextDate);
+        dayMatches = isFieldMatch(
+            currentMonthVal,
+            expression.month,
+            "month",
+            nextDate,
+        );
     } else if (isDayOfWeekAny) {
         dayMatches =
-            isFieldMatch(currentMonthVal, expression.month, "month", nextDate) &&
-            isFieldMatch(currentDayOfMonth, expression.day_of_month, "day_of_month", nextDate);
+            isFieldMatch(
+                currentMonthVal,
+                expression.month,
+                "month",
+                nextDate,
+            ) &&
+            isFieldMatch(
+                currentDayOfMonth,
+                expression.day_of_month,
+                "day_of_month",
+                nextDate,
+            );
     } else if (isDayOfMonthAny) {
         dayMatches =
-            isFieldMatch(currentMonthVal, expression.month, "month", nextDate) &&
-            isFieldMatch(currentDayOfWeek, expression.day_of_week, "day_of_week", nextDate);
+            isFieldMatch(
+                currentMonthVal,
+                expression.month,
+                "month",
+                nextDate,
+            ) &&
+            isFieldMatch(
+                currentDayOfWeek,
+                expression.day_of_week,
+                "day_of_week",
+                nextDate,
+            );
     } else {
         // Both specified - OR logic
         dayMatches =
-            isFieldMatch(currentMonthVal, expression.month, "month", nextDate) &&
-            (isFieldMatch(currentDayOfMonth, expression.day_of_month, "day_of_month", nextDate) ||
-                isFieldMatch(currentDayOfWeek, expression.day_of_week, "day_of_week", nextDate));
+            isFieldMatch(
+                currentMonthVal,
+                expression.month,
+                "month",
+                nextDate,
+            ) &&
+            (isFieldMatch(
+                currentDayOfMonth,
+                expression.day_of_month,
+                "day_of_month",
+                nextDate,
+            ) ||
+                isFieldMatch(
+                    currentDayOfWeek,
+                    expression.day_of_week,
+                    "day_of_week",
+                    nextDate,
+                ));
     }
 
     // If day matches, try to advance time within the same day
@@ -265,7 +310,9 @@ function getNextValidDate(
         if (nextHour > currentHour) {
             nextDate.setHours(nextHour);
             // Use optimized first valid minute lookup
-            nextDate.setMinutes(getFirstValidFieldValue(expression.minute, 0, 59));
+            nextDate.setMinutes(
+                getFirstValidFieldValue(expression.minute, 0, 59),
+            );
             return nextDate;
         }
         if (nextHour < currentHour) {
@@ -275,7 +322,9 @@ function getNextValidDate(
 
     // If we got here, we need to advance at least one day
     // Pre-compute the first valid day of month for direct jumping
-    const firstValidDayOfMonth = isDayOfWeekAny ? getFirstValidDayOfMonth(expression.day_of_month) : undefined;
+    const firstValidDayOfMonth = isDayOfWeekAny
+        ? getFirstValidDayOfMonth(expression.day_of_month)
+        : undefined;
 
     // Advance day by day until we find a match for both day of month and day of week
     let daysToTry = 366 * 4; // Allow up to 4 years for very sparse patterns
@@ -296,7 +345,10 @@ function getNextValidDate(
         // Check month first - use optimized month jumping
         if (!isFieldMatch(month, expression.month, "month", nextDate)) {
             // Jump directly to the next valid month
-            const { month: nextMonth, wrapped } = getNextMatchingMonth(month + 1 > 12 ? 1 : month + 1, expression.month);
+            const { month: nextMonth, wrapped } = getNextMatchingMonth(
+                month + 1 > 12 ? 1 : month + 1,
+                expression.month,
+            );
 
             if (wrapped || nextMonth < month) {
                 // Need to go to next year
@@ -315,13 +367,23 @@ function getNextValidDate(
 
         // If day of week is any, use day of month only
         if (isDayOfWeekAny) {
-            if (isFieldMatch(dayOfMonth, expression.day_of_month, "day_of_month", nextDate)) {
+            if (
+                isFieldMatch(
+                    dayOfMonth,
+                    expression.day_of_month,
+                    "day_of_month",
+                    nextDate,
+                )
+            ) {
                 break;
             }
 
             // Optimization: if we have a simple day value and current day is less,
             // jump directly to that day (if it exists in this month)
-            if (firstValidDayOfMonth !== undefined && dayOfMonth < firstValidDayOfMonth) {
+            if (
+                firstValidDayOfMonth !== undefined &&
+                dayOfMonth < firstValidDayOfMonth
+            ) {
                 const daysInMonth = getDaysInMonth(nextDate);
                 if (firstValidDayOfMonth <= daysInMonth) {
                     nextDate.setDate(firstValidDayOfMonth);
@@ -334,7 +396,14 @@ function getNextValidDate(
 
         // If day of month is any, use day of week only
         if (isDayOfMonthAny) {
-            if (isFieldMatch(dayOfWeek, expression.day_of_week, "day_of_week", nextDate)) {
+            if (
+                isFieldMatch(
+                    dayOfWeek,
+                    expression.day_of_week,
+                    "day_of_week",
+                    nextDate,
+                )
+            ) {
                 break;
             }
             continue;
@@ -386,7 +455,7 @@ function getNextValidField(
         return nextValue !== undefined
             ? nextValue
             : wrapAround
-              ? match.values[0]!
+              ? (match.values[0] as number)
               : max + 1;
     }
 
@@ -403,7 +472,10 @@ function getNextValidField(
 
         // If we get here, the current value is beyond all ranges
         // If wrapping is allowed, return the start of the first range
-        return wrapAround ? match.ranges[0]!.from : max + 1;
+        // match.ranges[0] is guaranteed to exist since we checked length > 0 above
+        return wrapAround
+            ? (match.ranges[0] as { from: number; to: number }).from
+            : max + 1;
     }
 
     if (match.steps && match.steps.length > 0) {
@@ -427,7 +499,11 @@ function getNextValidField(
         }
 
         // If we get here and wrapping is allowed, return the start of the first step
-        if (wrapAround && match.steps[0] !== undefined && match.steps[0].step !== 0) {
+        if (
+            wrapAround &&
+            match.steps[0] !== undefined &&
+            match.steps[0].step !== 0
+        ) {
             return match.steps[0].from;
         }
     }
@@ -553,8 +629,7 @@ function isFieldMatch(
                 const firstDowOfMonth = getDay(firstDayOfMonth);
 
                 // Days from start of month to first occurrence of target DOW
-                const daysToFirstOccurrence =
-                    (dow - firstDowOfMonth + 7) % 7;
+                const daysToFirstOccurrence = (dow - firstDowOfMonth + 7) % 7;
                 // First occurrence of this DOW is on day: daysToFirstOccurrence + 1
                 const firstOccurrenceDay = daysToFirstOccurrence + 1;
                 // Instance = (dayOfMonth - firstOccurrenceDay) / 7 + 1

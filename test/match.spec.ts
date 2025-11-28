@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { TZDate } from "@date-fns/tz";
+import { describe, expect, it } from "vitest";
 import { getFutureMatches, isTimeMatch } from "../src/match";
 import { parse } from "../src/parse.ts";
 import type { MatchOptions } from "../src/types";
@@ -691,8 +691,10 @@ describe("getFutureMatches with timezones", () => {
                     // Compare using getTime() for reliable date comparison
                     const matchTime = match.getTime();
                     return (
-                        matchTime !== new Date("2020-01-02T00:00:00.000Z").getTime() &&
-                        matchTime !== new Date("2020-01-02T00:20:00.000Z").getTime()
+                        matchTime !==
+                            new Date("2020-01-02T00:00:00.000Z").getTime() &&
+                        matchTime !==
+                            new Date("2020-01-02T00:20:00.000Z").getTime()
                     );
                 },
             },
@@ -750,15 +752,20 @@ describe("isTimeMatches", () => {
 
     it("range steps respect upper bound", () => {
         const pattern = "10-20/5 * * * ?";
-        checkTime(pattern, [
-            "2020-01-01T00:10:00Z",
-            "2020-01-01T00:15:00Z",
-            "2020-01-01T00:20:00Z",
-        ], true);
-        checkTime(pattern, [
-            "2020-01-01T00:25:00Z",
-            "2020-01-01T00:30:00Z",
-        ], false);
+        checkTime(
+            pattern,
+            [
+                "2020-01-01T00:10:00Z",
+                "2020-01-01T00:15:00Z",
+                "2020-01-01T00:20:00Z",
+            ],
+            true,
+        );
+        checkTime(
+            pattern,
+            ["2020-01-01T00:25:00Z", "2020-01-01T00:30:00Z"],
+            false,
+        );
     });
 
     it("last day of month", () => {

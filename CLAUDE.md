@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Test watch mode**: `pnpm test:watch`
 - **Single test**: `pnpm vitest --run test/parse.spec.ts` or `pnpm vitest --run -t "test name"`
 - **Lint**: `pnpm biome:ci` (check only) or `pnpm biome:check:unsafe` (auto-fix with unsafe fixes)
+- **Precommit hooks**: `pnpm run precommit` to check that code is built and linted before committing
 
 ## Architecture
 

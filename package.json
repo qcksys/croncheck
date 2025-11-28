@@ -25,7 +25,9 @@
         "build": "tsdown",
         "prepublish": "tsdown",
         "biome:check:unsafe": "biome check --write --unsafe",
-        "biome:ci": "biome ci"
+        "biome:ci": "biome ci",
+        "prepare": "husky",
+        "precommit": "pnpm run biome:check:unsafe && tsc && pnpm run test"
     },
     "dependencies": {
         "@date-fns/tz": "^1.4.1",
@@ -33,7 +35,8 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.3.7",
-        "tsdown": "^0.16.7",
+        "husky": "^9.1.7",
+        "tsdown": "^0.16.8",
         "typescript": "^5.9.3",
         "vitest": "^4.0.14"
     },

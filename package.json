@@ -1,6 +1,6 @@
 {
     "name": "@qcksys/croncheck",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Modern library for parsing and matching cron expressions",
     "keywords": [
         "cron"

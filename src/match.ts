@@ -4,6 +4,7 @@ import {
     endOfMonth,
     getDate,
     getDay,
+    getDaysInMonth,
     getHours,
     getMinutes,
     getMonth,
@@ -59,8 +60,8 @@ function getNextValidDate(
     currentDate: TZDate,
     expression: CronExpression,
 ): TZDate {
-    // Clone the date to avoid mutating the original
-    let nextDate = new TZDate(currentDate);
+    // Clone the date to avoid mutating the original (preserve timezone)
+    let nextDate = new TZDate(currentDate, currentDate.timeZone);
 
     // Add one minute to start with
     nextDate.setMinutes(nextDate.getMinutes() + 1);
@@ -79,55 +80,99 @@ function getNextValidDate(
         return nextDate;
     }
 
-    // Start by finding the next valid minute
-    const currentMinute = getMinutes(currentDate);
-    const nextMinute = getNextValidField(
-        currentMinute,
-        expression.minute,
-        0,
-        59,
-        true,
-    );
+    // Check if current day matches day constraints before trying to advance time
+    const currentDayOfMonth = getDate(nextDate);
+    const currentDayOfWeek = getDay(nextDate);
+    const currentMonthVal = getMonth(nextDate) + 1;
 
-    if (nextMinute > currentMinute) {
-        nextDate.setMinutes(nextMinute);
-        return nextDate;
-    }
-    if (nextMinute < currentMinute) {
-        // We've wrapped around to the next hour
-        nextDate.setHours(nextDate.getHours() + 1);
-        nextDate.setMinutes(nextMinute);
-        return nextDate;
+    const isDayOfMonthAny =
+        expression.day_of_month.all || expression.day_of_month.omit;
+    const isDayOfWeekAny =
+        expression.day_of_week.all || expression.day_of_week.omit;
+
+    // Check if the current day matches the day constraints
+    let dayMatches = false;
+    if (isDayOfMonthAny && isDayOfWeekAny) {
+        dayMatches = isFieldMatch(currentMonthVal, expression.month, "month", nextDate);
+    } else if (isDayOfWeekAny) {
+        dayMatches =
+            isFieldMatch(currentMonthVal, expression.month, "month", nextDate) &&
+            isFieldMatch(currentDayOfMonth, expression.day_of_month, "day_of_month", nextDate);
+    } else if (isDayOfMonthAny) {
+        dayMatches =
+            isFieldMatch(currentMonthVal, expression.month, "month", nextDate) &&
+            isFieldMatch(currentDayOfWeek, expression.day_of_week, "day_of_week", nextDate);
+    } else {
+        // Both specified - OR logic
+        dayMatches =
+            isFieldMatch(currentMonthVal, expression.month, "month", nextDate) &&
+            (isFieldMatch(currentDayOfMonth, expression.day_of_month, "day_of_month", nextDate) ||
+                isFieldMatch(currentDayOfWeek, expression.day_of_week, "day_of_week", nextDate));
     }
 
-    // If minute didn't change or we need to move to the next hour
-    const currentHour = getHours(currentDate);
-    const nextHour = getNextValidField(
-        currentHour,
-        expression.hour,
-        0,
-        23,
-        true,
-    );
+    // If day matches, try to advance time within the same day
+    if (dayMatches) {
+        // Start by finding the next valid minute
+        const currentMinute = getMinutes(currentDate);
+        const nextMinute = getNextValidField(
+            currentMinute,
+            expression.minute,
+            0,
+            59,
+            true,
+        );
 
-    if (nextHour > currentHour) {
-        nextDate.setHours(nextHour);
-        nextDate.setMinutes(0);
-        return nextDate;
-    }
-    if (nextHour < currentHour) {
-        // We've wrapped around to the next day
-        nextDate = addDays(nextDate, 1);
-        nextDate.setHours(nextHour);
-        nextDate.setMinutes(0);
-        return nextDate;
+        if (nextMinute > currentMinute) {
+            nextDate.setMinutes(nextMinute);
+            return nextDate;
+        }
+        if (nextMinute < currentMinute) {
+            // We've wrapped around to the next hour
+            nextDate.setHours(nextDate.getHours() + 1);
+            nextDate.setMinutes(nextMinute);
+            // Need to check if we're still on a valid day after hour change
+            if (getDate(nextDate) === currentDayOfMonth) {
+                return nextDate;
+            }
+            // Day changed, need to re-evaluate
+        }
+
+        // If minute didn't change or we need to move to the next hour
+        const currentHour = getHours(currentDate);
+        const nextHour = getNextValidField(
+            currentHour,
+            expression.hour,
+            0,
+            23,
+            true,
+        );
+
+        if (nextHour > currentHour) {
+            nextDate.setHours(nextHour);
+            nextDate.setMinutes(0);
+            // Find first valid minute
+            for (let m = 0; m <= 59; m++) {
+                if (isFieldMatch(m, expression.minute, "minute", nextDate)) {
+                    nextDate.setMinutes(m);
+                    break;
+                }
+            }
+            return nextDate;
+        }
+        if (nextHour < currentHour) {
+            // We've wrapped around to the next day - fall through to day iteration
+        }
     }
 
     // If we got here, we need to advance at least one day
     // Advance day by day until we find a match for both day of month and day of week
     let daysToTry = 366; // Limit to avoid infinite loops (more than a year)
+    let skipAddDay = false;
     while (daysToTry-- > 0) {
-        nextDate = addDays(nextDate, 1);
+        if (!skipAddDay) {
+            nextDate = addDays(nextDate, 1);
+        }
+        skipAddDay = false;
         nextDate.setHours(0);
         nextDate.setMinutes(0);
 
@@ -141,22 +186,23 @@ function getNextValidDate(
             // Skip to the first day of the next month
             nextDate.setDate(1);
             nextDate.setMonth(nextDate.getMonth() + 1);
+            skipAddDay = true; // Don't add a day on next iteration
             continue;
         }
 
         // Handle day of month and day of week logic
-        const isDayOfMonthAsterisk =
-            expression.day_of_month.all && !expression.day_of_month.omit;
-        const isDayOfWeekAsterisk =
-            expression.day_of_week.all && !expression.day_of_week.omit;
+        const isDayOfMonthAny =
+            expression.day_of_month.all || expression.day_of_month.omit;
+        const isDayOfWeekAny =
+            expression.day_of_week.all || expression.day_of_week.omit;
 
-        // If both are asterisks, any day matches
-        if (isDayOfMonthAsterisk && isDayOfWeekAsterisk) {
+        // If both are any, any day matches
+        if (isDayOfMonthAny && isDayOfWeekAny) {
             break;
         }
 
-        // If day of month is specified but day of week is asterisk, use day of month only
-        if (!isDayOfMonthAsterisk && isDayOfWeekAsterisk) {
+        // If day of week is any, use day of month only
+        if (isDayOfWeekAny) {
             if (
                 isFieldMatch(
                     currentDayOfMonth,
@@ -170,8 +216,8 @@ function getNextValidDate(
             continue;
         }
 
-        // If day of week is specified but day of month is asterisk, use day of week only
-        if (isDayOfMonthAsterisk && !isDayOfWeekAsterisk) {
+        // If day of month is any, use day of week only
+        if (isDayOfMonthAny) {
             if (
                 isFieldMatch(
                     currentDayOfWeek,
@@ -185,7 +231,7 @@ function getNextValidDate(
             continue;
         }
 
-        // If both are specified, either condition can match
+        // If both are specified, either condition can match (OR logic)
         const dayOfMonthMatches = isFieldMatch(
             currentDayOfMonth,
             expression.day_of_month,
@@ -242,16 +288,16 @@ function getNextValidField(
         return currentValue + 1;
     }
 
-    if (match.values && match.values.length > 0 && match.values[0]) {
+    if (match.values && match.values.length > 0) {
         const nextValue = match.values.find((v) => v > currentValue);
         return nextValue !== undefined
             ? nextValue
             : wrapAround
-              ? match.values[0]
+              ? match.values[0]!
               : max + 1;
     }
 
-    if (match.ranges && match.ranges.length > 0 && match.ranges[0]) {
+    if (match.ranges && match.ranges.length > 0) {
         // First check if we can find a value in one of the ranges
         for (const range of match.ranges) {
             if (currentValue < range.from) {
@@ -264,7 +310,7 @@ function getNextValidField(
 
         // If we get here, the current value is beyond all ranges
         // If wrapping is allowed, return the start of the first range
-        return wrapAround ? match.ranges[0].from : max + 1;
+        return wrapAround ? match.ranges[0]!.from : max + 1;
     }
 
     if (match.steps && match.steps.length > 0) {
@@ -288,7 +334,7 @@ function getNextValidField(
         }
 
         // If we get here and wrapping is allowed, return the start of the first step
-        if (wrapAround && match.steps[0] && match.steps[0].step !== 0) {
+        if (wrapAround && match.steps[0] !== undefined && match.steps[0].step !== 0) {
             return match.steps[0].from;
         }
     }
@@ -316,17 +362,17 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
     const dayOfMonthMatch = expression.day_of_month;
     const dayOfWeekMatch = expression.day_of_week;
 
-    // If both day fields are asterisks, match any day
-    const isDayOfMonthAsterisk = dayOfMonthMatch.all && !dayOfMonthMatch.omit;
-    const isDayOfWeekAsterisk = dayOfWeekMatch.all && !dayOfWeekMatch.omit;
+    // Check if fields are "any" (asterisk or omit)
+    const isDayOfMonthAny = dayOfMonthMatch.all || dayOfMonthMatch.omit;
+    const isDayOfWeekAny = dayOfWeekMatch.all || dayOfWeekMatch.omit;
 
-    if (isDayOfMonthAsterisk && isDayOfWeekAsterisk) {
-        // If both are asterisks, we've already checked minute, hour, month
+    if (isDayOfMonthAny && isDayOfWeekAny) {
+        // If both are any (asterisk or omit), we've already checked minute, hour, month
         return true;
     }
 
-    // If day of week is asterisk, use day of month
-    if (isDayOfWeekAsterisk) {
+    // If day of week is any, use day of month only
+    if (isDayOfWeekAny) {
         return isFieldMatch(
             dayOfMonthValue,
             dayOfMonthMatch,
@@ -335,8 +381,8 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
         );
     }
 
-    // If day of month is asterisk, use day of week
-    if (isDayOfMonthAsterisk) {
+    // If day of month is any, use day of week only
+    if (isDayOfMonthAny) {
         return isFieldMatch(
             dayOfWeekValue,
             dayOfWeekMatch,
@@ -345,7 +391,7 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
         );
     }
 
-    // If neither is asterisk, match either condition
+    // If neither is any (both have specific values), match either condition (OR logic)
     const dayOfMonthMatches = isFieldMatch(
         getDate(date),
         dayOfMonthMatch,
@@ -353,7 +399,6 @@ export function isTimeMatch(expression: CronExpression, date: TZDate): boolean {
         date,
     );
 
-    // Some cron systems treat 7 as Sunday, so we need to normalize
     const dayOfWeekMatches = isFieldMatch(
         dayOfWeekValue,
         dayOfWeekMatch,
@@ -381,6 +426,7 @@ function isFieldMatch(
     if (
         match.steps?.some((step) => {
             if (step.step === 0) return false; // Step of 0 would cause division by zero
+            if (value < step.from || value > step.to) return false;
             if (step.from === 0 && value === 0) return true;
             const normalizedValue = value - step.from;
             return normalizedValue >= 0 && normalizedValue % step.step === 0;
@@ -392,9 +438,11 @@ function isFieldMatch(
         if (match.lastDay && value === getDate(endOfMonth(date))) return true;
         if (match.lastWeekday && value === getLastWeekdayOfMonth(date))
             return true;
-        if (match.nearestWeekdays?.includes(value)) {
-            const nearest = getNearestWeekday(date);
-            return value === nearest;
+        if (match.nearestWeekdays?.length) {
+            return match.nearestWeekdays.some((targetDay) => {
+                const nearest = resolveNearestWeekday(targetDay, date);
+                return value === nearest;
+            });
         }
     }
 
@@ -410,15 +458,15 @@ function isFieldMatch(
                 const dayOfMonth = getDate(date);
                 const firstDayOfMonth = startOfMonth(date);
                 const firstDowOfMonth = getDay(firstDayOfMonth);
+
+                // Days from start of month to first occurrence of target DOW
+                const daysToFirstOccurrence =
+                    (dow - firstDowOfMonth + 7) % 7;
+                // First occurrence of this DOW is on day: daysToFirstOccurrence + 1
+                const firstOccurrenceDay = daysToFirstOccurrence + 1;
+                // Instance = (dayOfMonth - firstOccurrenceDay) / 7 + 1
                 const instance =
-                    Math.floor(
-                        (dayOfMonth -
-                            1 +
-                            (firstDowOfMonth > dow
-                                ? 7 - firstDowOfMonth + dow
-                                : dow - firstDowOfMonth)) /
-                            7,
-                    ) + 1;
+                    Math.floor((dayOfMonth - firstOccurrenceDay) / 7) + 1;
                 return instance === nth.instance;
             });
         }
@@ -446,11 +494,26 @@ function getLastWeekdayOfMonth(date: Date): number {
     return getDate(lastDay);
 }
 
-function getNearestWeekday(date: Date): number {
-    const day = getDate(date);
-    const dayOfWeek = getDay(date);
+function resolveNearestWeekday(targetDay: number, date: Date): number {
+    const daysInMonth = getDaysInMonth(date);
+    const clampedDay = Math.min(Math.max(targetDay, 1), daysInMonth);
+    const monthStart = startOfMonth(date);
+    const candidate = addDays(monthStart, clampedDay - 1);
+    const dayOfWeek = getDay(candidate);
 
-    if (dayOfWeek === 0) return day + 1; // If Sunday, move to Monday
-    if (dayOfWeek === 6) return day - 1; // If Saturday, move to Friday
-    return day;
+    if (dayOfWeek === 0) {
+        if (clampedDay === daysInMonth) {
+            return getDate(addDays(candidate, -2));
+        }
+        return getDate(addDays(candidate, 1));
+    }
+
+    if (dayOfWeek === 6) {
+        if (clampedDay === 1) {
+            return getDate(addDays(candidate, 2));
+        }
+        return getDate(addDays(candidate, -1));
+    }
+
+    return getDate(candidate);
 }

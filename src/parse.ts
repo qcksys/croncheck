@@ -105,8 +105,8 @@ function parseValue(value: string, field: FieldType): number {
     const cleanValue = value.toLowerCase();
 
     // Handle aliases
-    if (info.alias && cleanValue in info.alias && info.alias[cleanValue]) {
-        return info.alias[cleanValue];
+    if (info.alias && cleanValue in info.alias) {
+        return info.alias[cleanValue]!;
     }
 
     // Handle numeric values

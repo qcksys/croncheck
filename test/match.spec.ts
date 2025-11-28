@@ -493,33 +493,35 @@ describe("getFutureMatches", () => {
     });
 
     it("Day of the week with * and step range #39", () => {
-        expectFutureMatches("30 * 1 ? * */7", [
-            "2020-01-05T01:00:30Z",
-            "2020-01-05T01:01:30Z",
-            "2020-01-05T01:02:30Z",
-            "2020-01-05T01:03:30Z",
-            "2020-01-05T01:04:30Z",
-            "2020-01-05T01:05:30Z",
-            "2020-01-05T01:06:30Z",
-            "2020-01-05T01:07:30Z",
-            "2020-01-05T01:08:30Z",
+        // Every minute at hour 1 on Sundays (*/7 step means every Sunday)
+        expectFutureMatches("* 1 ? * */7", [
+            "2020-01-05T01:00:00Z",
+            "2020-01-05T01:01:00Z",
+            "2020-01-05T01:02:00Z",
+            "2020-01-05T01:03:00Z",
+            "2020-01-05T01:04:00Z",
+            "2020-01-05T01:05:00Z",
+            "2020-01-05T01:06:00Z",
+            "2020-01-05T01:07:00Z",
+            "2020-01-05T01:08:00Z",
         ]);
 
-        expectFutureMatches("30 1 1 ? * */7", [
-            "2020-01-05T01:01:30Z",
-            "2020-01-12T01:01:30Z",
-            "2020-01-19T01:01:30Z",
-            "2020-01-26T01:01:30Z",
-            "2020-02-02T01:01:30Z",
-            "2020-02-09T01:01:30Z",
-            "2020-02-16T01:01:30Z",
-            "2020-02-23T01:01:30Z",
-            "2020-03-01T01:01:30Z",
+        // Minute 30 at hour 1 on Sundays
+        expectFutureMatches("30 1 ? * */7", [
+            "2020-01-05T01:30:00Z",
+            "2020-01-12T01:30:00Z",
+            "2020-01-19T01:30:00Z",
+            "2020-01-26T01:30:00Z",
+            "2020-02-02T01:30:00Z",
+            "2020-02-09T01:30:00Z",
+            "2020-02-16T01:30:00Z",
+            "2020-02-23T01:30:00Z",
+            "2020-03-01T01:30:00Z",
         ]);
     });
 
     it("Day of the week with * and step range #42", () => {
-        expectFutureMatches("0 30 12 ? * MON", [
+        expectFutureMatches("30 12 ? * MON", [
             "2020-01-06T12:30:00Z",
             "2020-01-13T12:30:00Z",
             "2020-01-20T12:30:00Z",
@@ -667,15 +669,9 @@ describe("getFutureMatches with timezones", () => {
     });
 
     it("#20 - Cronjs matcher does not support cron string with seconds", () => {
-        expect(
-            expectFutureMatches(
-                "0 0/1 * 1/1 * ? * ",
-                ["2025-01-02T00:00:00Z", "2025-01-02T00:01:00Z"],
-                {
-                    startAt: new Date("2025-01-02T00:00:00.000Z"),
-                },
-            ),
-        ).rejects;
+        // This library only supports 4-5 field expressions, not 6-7 fields with seconds
+        const parsed = parse("0 0/1 * 1/1 * ? * ");
+        expect(parsed.success).toBe(false);
     });
 
     it("match validator", () => {
@@ -692,9 +688,11 @@ describe("getFutureMatches with timezones", () => {
                 matchCount: 5,
                 startAt: new Date("2020-01-02T00:00:00.000Z"),
                 matchValidator: (match) => {
+                    // Compare using getTime() for reliable date comparison
+                    const matchTime = match.getTime();
                     return (
-                        match !== new Date("2020-01-02T00:00:00Z") &&
-                        match !== new Date("2020-01-02T00:20:00Z")
+                        matchTime !== new Date("2020-01-02T00:00:00.000Z").getTime() &&
+                        matchTime !== new Date("2020-01-02T00:20:00.000Z").getTime()
                     );
                 },
             },
@@ -729,7 +727,7 @@ function checkTime(expr: string, times: string[], result: boolean) {
         throw new Error("Invalid expression");
     }
     for (const time of times) {
-        expect(isTimeMatch(parsed.expression, new TZDate(time))).toEqual(
+        expect(isTimeMatch(parsed.expression, new TZDate(time, "UTC"))).toEqual(
             result,
         );
     }
@@ -748,6 +746,19 @@ describe("isTimeMatches", () => {
         checkTime(pattern, ["2020-01-13T00:00:00Z"], false); // Second Monday
         // Then check that the first Monday does match
         checkTime(pattern, ["2020-01-06T00:00:00Z"], true);
+    });
+
+    it("range steps respect upper bound", () => {
+        const pattern = "10-20/5 * * * ?";
+        checkTime(pattern, [
+            "2020-01-01T00:10:00Z",
+            "2020-01-01T00:15:00Z",
+            "2020-01-01T00:20:00Z",
+        ], true);
+        checkTime(pattern, [
+            "2020-01-01T00:25:00Z",
+            "2020-01-01T00:30:00Z",
+        ], false);
     });
 
     it("last day of month", () => {

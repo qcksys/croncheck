@@ -6,27 +6,27 @@ import type { CronExpression } from "../src/types.ts";
 function expectExpr(expr: string, expected: Partial<CronExpression>) {
     const output = parse(expr);
 
-    if (output.success) {
-        for (const field of CronFields) {
-            if (!expected[field]) {
-                expected[field] = { all: true };
-            }
-        }
-
-        expect(output.expression).toStrictEqual(expected);
-    } else {
-        expect(output.error).toBe(undefined);
+    if (!output.success || !output.expression) {
+        throw new Error(`Expected expression to succeed: ${expr}`);
     }
+
+    for (const field of CronFields) {
+        if (!expected[field]) {
+            expected[field] = { all: true };
+        }
+    }
+
+    expect(output.expression).toStrictEqual(expected);
 }
 
 function expectError(expr: string, error: string) {
     const output = parse(expr);
 
     if (output.success) {
-        expect(output.success).toBe(false);
-    } else {
-        expect(output.error).toBe(error);
+        throw new Error(`Expected expression to fail: ${expr}`);
     }
+
+    expect(output.error).toBe(error);
 }
 
 describe("valid expressions", () => {

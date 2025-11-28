@@ -56,6 +56,120 @@ export function getFutureMatches(
     return matches;
 }
 
+/**
+ * Get the next matching month value from the current month.
+ * Returns the month (1-12) and whether we wrapped to next year.
+ */
+function getNextMatchingMonth(
+    currentMonth: number,
+    match: CronMatch,
+): { month: number; wrapped: boolean } {
+    if (match.all || match.omit) {
+        return { month: currentMonth, wrapped: false };
+    }
+
+    // Collect all valid months
+    const validMonths: number[] = [];
+
+    if (match.values) {
+        validMonths.push(...match.values);
+    }
+
+    if (match.ranges) {
+        for (const range of match.ranges) {
+            for (let m = range.from; m <= range.to; m++) {
+                if (!validMonths.includes(m)) validMonths.push(m);
+            }
+        }
+    }
+
+    if (match.steps) {
+        for (const step of match.steps) {
+            if (step.step === 0) continue;
+            for (let m = step.from; m <= step.to; m += step.step) {
+                if (!validMonths.includes(m)) validMonths.push(m);
+            }
+        }
+    }
+
+    validMonths.sort((a, b) => a - b);
+
+    if (validMonths.length === 0) {
+        return { month: currentMonth, wrapped: false };
+    }
+
+    // Find next valid month >= currentMonth
+    const nextMonth = validMonths.find((m) => m >= currentMonth);
+    if (nextMonth !== undefined) {
+        return { month: nextMonth, wrapped: false };
+    }
+
+    // Wrap to first valid month of next year
+    return { month: validMonths[0]!, wrapped: true };
+}
+
+/**
+ * Get the first valid day of month from a CronMatch.
+ * Returns undefined if the match uses special patterns (L, W, etc.)
+ */
+function getFirstValidDayOfMonth(match: CronMatch): number | undefined {
+    // Can't optimize special patterns
+    if (match.lastDay || match.lastWeekday || match.nearestWeekdays?.length) {
+        return undefined;
+    }
+
+    let minDay = 32;
+
+    if (match.values && match.values.length > 0) {
+        minDay = Math.min(minDay, Math.min(...match.values));
+    }
+
+    if (match.ranges && match.ranges.length > 0) {
+        for (const range of match.ranges) {
+            minDay = Math.min(minDay, range.from);
+        }
+    }
+
+    if (match.steps && match.steps.length > 0) {
+        for (const step of match.steps) {
+            minDay = Math.min(minDay, step.from);
+        }
+    }
+
+    return minDay < 32 ? minDay : undefined;
+}
+
+/**
+ * Get the first valid value for a field (used for hour/minute on new days).
+ */
+function getFirstValidFieldValue(match: CronMatch, min: number, max: number): number {
+    if (match.all || match.omit) {
+        return min;
+    }
+
+    if (match.values && match.values.length > 0) {
+        return Math.min(...match.values);
+    }
+
+    if (match.ranges && match.ranges.length > 0) {
+        let minVal = max + 1;
+        for (const range of match.ranges) {
+            minVal = Math.min(minVal, range.from);
+        }
+        return minVal;
+    }
+
+    if (match.steps && match.steps.length > 0) {
+        let minVal = max + 1;
+        for (const step of match.steps) {
+            minVal = Math.min(minVal, step.from);
+        }
+        return minVal;
+    }
+
+    return min;
+}
+
 function getNextValidDate(
     currentDate: TZDate,
     expression: CronExpression,
@@ -68,13 +182,19 @@ function getNextValidDate(
     nextDate.setSeconds(0);
     nextDate.setMilliseconds(0);
 
+    // Pre-compute constant flags (hoisted from loops)
+    const isDayOfMonthAny =
+        expression.day_of_month.all || expression.day_of_month.omit;
+    const isDayOfWeekAny =
+        expression.day_of_week.all || expression.day_of_week.omit;
+
     // Fast path for "* * * *" (every minute)
     const isEveryMinute =
         expression.minute.all &&
         expression.hour.all &&
-        (expression.day_of_month.all || expression.day_of_month.omit) &&
+        isDayOfMonthAny &&
         expression.month.all &&
-        (expression.day_of_week.all || expression.day_of_week.omit);
+        isDayOfWeekAny;
 
     if (isEveryMinute) {
         return nextDate;
@@ -84,11 +204,6 @@ function getNextValidDate(
     const currentDayOfMonth = getDate(nextDate);
     const currentDayOfWeek = getDay(nextDate);
     const currentMonthVal = getMonth(nextDate) + 1;
-
-    const isDayOfMonthAny =
-        expression.day_of_month.all || expression.day_of_month.omit;
-    const isDayOfWeekAny =
-        expression.day_of_week.all || expression.day_of_week.omit;
 
     // Check if the current day matches the day constraints
     let dayMatches = false;
@@ -149,14 +264,8 @@ function getNextValidDate(
 
         if (nextHour > currentHour) {
             nextDate.setHours(nextHour);
-            nextDate.setMinutes(0);
-            // Find first valid minute
-            for (let m = 0; m <= 59; m++) {
-                if (isFieldMatch(m, expression.minute, "minute", nextDate)) {
-                    nextDate.setMinutes(m);
-                    break;
-                }
-            }
+            // Use optimized first valid minute lookup
+            nextDate.setMinutes(getFirstValidFieldValue(expression.minute, 0, 59));
             return nextDate;
         }
         if (nextHour < currentHour) {
@@ -165,8 +274,11 @@ function getNextValidDate(
     }
 
     // If we got here, we need to advance at least one day
+    // Pre-compute the first valid day of month for direct jumping
+    const firstValidDayOfMonth = isDayOfWeekAny ? getFirstValidDayOfMonth(expression.day_of_month) : undefined;
+
     // Advance day by day until we find a match for both day of month and day of week
-    let daysToTry = 366; // Limit to avoid infinite loops (more than a year)
+    let daysToTry = 366 * 4; // Allow up to 4 years for very sparse patterns
     let skipAddDay = false;
     while (daysToTry-- > 0) {
         if (!skipAddDay) {
@@ -177,24 +289,24 @@ function getNextValidDate(
         nextDate.setMinutes(0);
 
         // Check if this day matches the day of month and day of week constraints
-        const currentDayOfMonth = getDate(nextDate);
-        const currentDayOfWeek = getDay(nextDate);
-        const currentMonth = getMonth(nextDate) + 1; // Convert to 1-based
+        const dayOfMonth = getDate(nextDate);
+        const dayOfWeek = getDay(nextDate);
+        const month = getMonth(nextDate) + 1; // Convert to 1-based
 
-        // Check month first
-        if (!isFieldMatch(currentMonth, expression.month, "month", nextDate)) {
-            // Skip to the first day of the next month
+        // Check month first - use optimized month jumping
+        if (!isFieldMatch(month, expression.month, "month", nextDate)) {
+            // Jump directly to the next valid month
+            const { month: nextMonth, wrapped } = getNextMatchingMonth(month + 1 > 12 ? 1 : month + 1, expression.month);
+
+            if (wrapped || nextMonth < month) {
+                // Need to go to next year
+                nextDate.setFullYear(nextDate.getFullYear() + 1);
+            }
+            nextDate.setMonth(nextMonth - 1); // Convert to 0-based
             nextDate.setDate(1);
-            nextDate.setMonth(nextDate.getMonth() + 1);
-            skipAddDay = true; // Don't add a day on next iteration
+            skipAddDay = true;
             continue;
         }
-
-        // Handle day of month and day of week logic
-        const isDayOfMonthAny =
-            expression.day_of_month.all || expression.day_of_month.omit;
-        const isDayOfWeekAny =
-            expression.day_of_week.all || expression.day_of_week.omit;
 
         // If both are any, any day matches
         if (isDayOfMonthAny && isDayOfWeekAny) {
@@ -203,29 +315,26 @@ function getNextValidDate(
 
         // If day of week is any, use day of month only
         if (isDayOfWeekAny) {
-            if (
-                isFieldMatch(
-                    currentDayOfMonth,
-                    expression.day_of_month,
-                    "day_of_month",
-                    nextDate,
-                )
-            ) {
+            if (isFieldMatch(dayOfMonth, expression.day_of_month, "day_of_month", nextDate)) {
                 break;
+            }
+
+            // Optimization: if we have a simple day value and current day is less,
+            // jump directly to that day (if it exists in this month)
+            if (firstValidDayOfMonth !== undefined && dayOfMonth < firstValidDayOfMonth) {
+                const daysInMonth = getDaysInMonth(nextDate);
+                if (firstValidDayOfMonth <= daysInMonth) {
+                    nextDate.setDate(firstValidDayOfMonth);
+                    skipAddDay = true;
+                    continue;
+                }
             }
             continue;
         }
 
         // If day of month is any, use day of week only
         if (isDayOfMonthAny) {
-            if (
-                isFieldMatch(
-                    currentDayOfWeek,
-                    expression.day_of_week,
-                    "day_of_week",
-                    nextDate,
-                )
-            ) {
+            if (isFieldMatch(dayOfWeek, expression.day_of_week, "day_of_week", nextDate)) {
                 break;
             }
             continue;
@@ -233,14 +342,14 @@ function getNextValidDate(
 
         // If both are specified, either condition can match (OR logic)
         const dayOfMonthMatches = isFieldMatch(
-            currentDayOfMonth,
+            dayOfMonth,
             expression.day_of_month,
             "day_of_month",
             nextDate,
         );
 
         const dayOfWeekMatches = isFieldMatch(
-            currentDayOfWeek,
+            dayOfWeek,
             expression.day_of_week,
             "day_of_week",
             nextDate,
@@ -251,25 +360,9 @@ function getNextValidDate(
         }
     }
 
-    // Find the first valid hour and minute for this day
-    nextDate.setHours(0);
-    nextDate.setMinutes(0);
-
-    // Find the first valid hour
-    for (let h = 0; h <= 23; h++) {
-        if (isFieldMatch(h, expression.hour, "hour", nextDate)) {
-            nextDate.setHours(h);
-            break;
-        }
-    }
-
-    // Find the first valid minute
-    for (let m = 0; m <= 59; m++) {
-        if (isFieldMatch(m, expression.minute, "minute", nextDate)) {
-            nextDate.setMinutes(m);
-            break;
-        }
-    }
+    // Find the first valid hour and minute for this day using optimized lookups
+    nextDate.setHours(getFirstValidFieldValue(expression.hour, 0, 23));
+    nextDate.setMinutes(getFirstValidFieldValue(expression.minute, 0, 59));
 
     return nextDate;
 }
